@@ -1,4 +1,4 @@
-Simple PoC that study what are the best ways to mathematically detect autoclicker randomization. Code not modularized because it's still in development
+Simple PoC to show what are the best ways to mathematically detect autoclicker randomization. Code not modularized because it's still in development
 
 # Current Stage
 
