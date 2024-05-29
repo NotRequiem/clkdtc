@@ -96,6 +96,6 @@ We just don't need to express the standard deviation as a percentage, it's bette
 ## Fractal Dimensions
 This is a bad technique because it detects if the stats of a player are too complex over a lot of time by basically counting the violations of high complexity. It calculates the fractal dimension of the mouse click interval time series using methods like box-counting or correlation dimension, providing insights into the complexity and self-similarity of the data. 
 
-Example: They click with too randomly and with very low cps and very low spikes, then suddenly click consistently, at high cps and without any spike, then they start having a lot of outliers whhen before they were not... 
+Example: They click with too randomly, with very low cps and very low spikes, then suddenly click consistently, at high cps and without any spike, then they start having a lot of outliers when before they were not... 
 
-A player might do this because simply being exhaust or requiring to click in a different way to do something, or even having different states of moods, such as calm, then nervous, etc.
+A player might do this because simply being exhaust or requiring to click in a different way to do something, or **even** having different states of moods, such as calm, then nervous, etc.
