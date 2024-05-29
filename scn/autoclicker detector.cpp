@@ -1,4 +1,4 @@
-﻿#include <Windows.h>
+#include <Windows.h>
 #include <vector>
 #include <numeric>
 #include <algorithm>
@@ -16,31 +16,7 @@ int clickCount = 0;
 WPARAM monitorButton;
 std::vector<double> clickTimestamps;
 
-void SpawnConsole() {
-    if (!AllocConsole()) {
-        fprintf(stderr, "Failed to allocate console: %lu\n", GetLastError());
-        return;
-    }
-
-    FILE* file;
-    freopen_s(&file, "CONOUT$", "w", stdout);
-    freopen_s(&file, "CONOUT$", "w", stderr);
-    freopen_s(&file, "CONIN$", "r", stdin);
-
-    HANDLE hConout = CreateFileA("CONOUT$", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hConout == INVALID_HANDLE_VALUE) {
-        fprintf(stderr, "Failed to open CONOUT$ handle: %lu\n", GetLastError());
-        return;
-    }
-
-    if (!SetStdHandle(STD_OUTPUT_HANDLE, hConout) || !SetStdHandle(STD_ERROR_HANDLE, hConout)) {
-        fprintf(stderr, "Failed to set standard handles: %lu\n", GetLastError());
-        CloseHandle(hConout);
-        return;
-    }
-}
-
-void askUserForDetails() {
+void init() {
     int buttonChoice;
     std::cout << "Which mouse button do you want to monitor?\n";
     std::cout << "1. Left Button\n";
@@ -93,7 +69,7 @@ static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lPara
     return CallNextHookEx(hMouseHook, nCode, wParam, lParam);
 }
 
-void InstallHook() {
+void install_hook() {
     hMouseHook = SetWindowsHookExA(WH_MOUSE_LL, LowLevelMouseProc, GetModuleHandle(NULL), 0);
     if (!hMouseHook) {
         std::cout << "Failed to install mouse hook. Error code: " << GetLastError() << "\n";
@@ -135,14 +111,18 @@ double calculateVariance(const std::vector<double>& data, double mean) {
 double calculateStandardDeviation(const std::vector<double>& data, double mean) {
     /*
     The square root of variance, giving a measure of dispersion in the same units as the original data.
-    It is useful for identifying how spread out the intervals are. 
+    It is useful for identifying how spread out the intervals are.
     This check is not reliable on it's own, it should be combined with another statistical value (example: kurtosis)
 
     In an example case of having very low standard desviations, with low outliers and therefore negatively skewned data at the same time, this check is reliable after a long time.
     This essentially would check for standard desviation (consistent clicking) while also having low outliers (high clicks per second) for a long period of time
     Therefore, this would flag players clicking too consistently while clicking fastly for a long period of time or click amounts
     */
-    return std::sqrt(calculateVariance(data, mean));
+    double sum = 0.0;
+    for (double value : data) {
+        sum += (value - mean) * (value - mean);
+    }
+    return std::sqrt(sum / (data.size() - 1));
 }
 
 /*
@@ -190,9 +170,6 @@ void detectSpikesAndOutliers(const std::vector<double>& data, double mean, doubl
         if (std::abs(value - mean) > 4 * stdDev) {
             std::cout << value << "\n";
         }
-        else {
-            std::cout << "Non suspicious outliers detected\n" << std::endl;
-        }
     }
 
     std::cout << "Spikes (adjacent differences more than 4 STD):\n";
@@ -200,9 +177,6 @@ void detectSpikesAndOutliers(const std::vector<double>& data, double mean, doubl
         // Spikes are large changes between consecutive data points, you can have multiple of them
         if (std::abs(data[i] - data[i - 1]) > 4 * stdDev) {
             std::cout << data[i - 1] << " -> " << data[i] << "\n";
-        }
-        else {
-            std::cout << "Non suspicious spikes detected\n" << std::endl;
         }
     }
 }
@@ -266,94 +240,36 @@ double calculateEntropy(const std::vector<double>& data) {
     return entropy;
 }
 
-// RQA ---------------------
-// Function to calculate the Euclidean distance between two points in a multidimensional space
-double euclideanDistance(const std::vector<double>& point1, const std::vector<double>& point2) {
-    double sum = 0.0;
-    for (size_t i = 0; i < point1.size(); ++i) {
-        sum += std::pow(point1[i] - point2[i], 2);
-    }
-    return std::sqrt(sum);
-}
+// Calculate the cross recurrence plot (CRP)
+/*
+ the CRP is represented as a matrix of 0s and 1s. 
+ A value of 1 indicates that the corresponding values in the two time series are similar (above the threshold)
+ while a value of 0 indicates dissimilarity (below the threshold).
 
-// Function to create a recurrence plot from a time series
-std::vector<std::vector<int>> createRecurrencePlot(const std::vector<double>& timeSeries, double threshold) {
-    std::vector<std::vector<int>> recurrencePlot(timeSeries.size(), std::vector<int>(timeSeries.size(), 0));
-    for (size_t i = 0; i < timeSeries.size(); ++i) {
-        for (size_t j = 0; j < timeSeries.size(); ++j) {
-            recurrencePlot[i][j] = (euclideanDistance({ timeSeries[i] }, { timeSeries[j] }) <= threshold) ? 1 : 0;
-        }
-    }
-    return recurrencePlot;
-}
+ The best threshold to get is the standard desviation.
+*/
+std::vector<std::vector<int>> calculateCRP(const std::vector<double>& data, double threshold) {
+    std::vector<std::vector<int>> crp(data.size(), std::vector<int>(data.size(), 0));
 
-// Function to calculate RQA measures from a recurrence plot
-std::tuple<double, double, double> calculateRQA(const std::vector<std::vector<int>>& recurrencePlot) {
-    int numRecurrences = 0;
-    int numLaminations = 0;
-    int longestDiagonal = 0;
-
-    for (size_t i = 0; i < recurrencePlot.size(); ++i) {
-        for (size_t j = 0; j < recurrencePlot[i].size(); ++j) {
-            if (recurrencePlot[i][j] == 1) {
-                numRecurrences++;
-                int diagonalLength = 1;
-                while (i + diagonalLength < recurrencePlot.size() && j + diagonalLength < recurrencePlot[i].size() &&
-                    recurrencePlot[i + diagonalLength][j + diagonalLength] == 1) {
-                    diagonalLength++;
-                }
-                if (diagonalLength > longestDiagonal) {
-                    longestDiagonal = diagonalLength;
-                }
-                if (i > 0 && recurrencePlot[i - 1][j - 1] == 0 && j > 0 && recurrencePlot[i][j - 1] == 0) {
-                    numLaminations++;
-                }
+    for (size_t i = 0; i < data.size(); ++i) {
+        for (size_t j = 0; j < data.size(); ++j) {
+            if (std::abs(data[i] - data[j]) <= threshold) {
+                crp[i][j] = 1;
             }
         }
     }
 
-    double recurrenceRate = static_cast<double>(numRecurrences) / (recurrencePlot.size() * recurrencePlot.size());
-    double determinism = static_cast<double>(longestDiagonal) / recurrencePlot.size();
-    double laminarity = static_cast<double>(numLaminations) / numRecurrences;
-
-    return std::make_tuple(recurrenceRate, determinism, laminarity);
-}
-
-std::tuple<std::vector<double>, double> getIntervalsWithThreshold() {
-    if (clickTimestamps.size() < 2) {
-        std::cerr << "Not enough data to calculate intervals and threshold.\n";
-        return std::make_tuple(std::vector<double>(), 0.0);
-    }
-
-    std::vector<double> intervals;
-    for (size_t i = 1; i < clickTimestamps.size(); ++i) {
-        intervals.push_back(clickTimestamps[i] - clickTimestamps[i - 1]);
-    }
-
-    double meanInterval = calculateMean(intervals);
-    double stdDev = calculateStandardDeviation(intervals, meanInterval);
-
-    return std::make_tuple(intervals, meanInterval + 2 * stdDev);
-}
-
-void printRQAMeasures(double recurrenceRate, double determinism, double laminarity) {
-    std::cout << "Recurrence Rate: " << recurrenceRate << "\n";
-    std::cout << "Determinism: " << determinism << "\n";
-    std::cout << "Laminarity: " << laminarity << "\n";
-}
-
-void analyzeRQA(const std::vector<double>& timeSeries, double threshold) {
-    std::vector<std::vector<int>> recurrencePlot = createRecurrencePlot(timeSeries, threshold);
-    auto [recurrenceRate, determinism, laminarity] = calculateRQA(recurrencePlot);
-    printRQAMeasures(recurrenceRate, determinism, laminarity);
+    return crp;
 }
 
 // After getting a lot of statistical values for LEGIT data only, we can use the Gaussian distribution
 // This would compare our human click behavior with actual clicking behavior
 
-void printStatistics() {
+void process_click_data() {
     // This is done because we can't calculate an average of the data with only 1 sample.
     // Even if its a number like 2 or 3, we won't be able to calculate the kurtosis, skewness and covariance of the whole click data
+    // for precision in the calculations, using at least 30-50 click intervals is recommended due to the Central Limit Theorem
+    // althought to detect autoclickers we will use more
     if (clickTimestamps.size() < 2) {
         std::cout << "Not enough data to calculate statistics.\n";
         return;
@@ -363,6 +279,12 @@ void printStatistics() {
     for (size_t i = 1; i < clickTimestamps.size(); ++i) {
         intervals.push_back(clickTimestamps[i] - clickTimestamps[i - 1]);
     }
+
+    std::cout << "Click timestamps:\n";
+    for (double timestamp : clickTimestamps) {
+        std::cout << timestamp << " ";
+    }
+    std::cout << "\n";
 
     double meanInterval = calculateMean(intervals);
     double stdDev = calculateStandardDeviation(intervals, meanInterval);
@@ -400,14 +322,21 @@ void printStatistics() {
     double covariance = calculateCovariance(deviations, stats, 0.0, meanStats);
     std::cout << "Covariance between intervals and statistics: " << covariance << "\n";
 
-    auto [intervalsForRQA, threshold] = getIntervalsWithThreshold();
-    analyzeRQA(intervalsForRQA, threshold);
+    std::vector<std::vector<int>> crp = calculateCRP(intervals, stdDev);
+
+    // Output the CRP matrix
+    std::cout << "Cross Recurrence Plot (CRP):\n";
+    for (const auto& row : crp) {
+        for (int val : row) {
+            std::cout << val << " ";
+        }
+        std::cout << std::endl;
+    }
 }
 
 int main() {
-    SpawnConsole();
-    askUserForDetails();
-    InstallHook();
-    printStatistics();
+    init();
+    install_hook();
+    process_click_data();
     return 0;
 }
