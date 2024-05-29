@@ -7,7 +7,9 @@ Stage 1
 # Total PoC Stages
 
 Stage 1: Study statistical and probability algorithms, and make code to calculate these statistical values
+
 Stage 2: Study the best way to collect human clicking patterns and autoclicker patterns
+
 Stage 3: Make the code to detect autoclickers
 
 # Amount of click data necessary to detect autoclickers
