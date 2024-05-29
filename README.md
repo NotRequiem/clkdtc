@@ -1,17 +1,5 @@
 Simple PoC to show what are the best ways to mathematically detect autoclicker randomization. Code not modularized because it's still in development
 
-# Current Stage
-
-Stage 1
-
-# Total PoC Stages
-
-Stage 1: Study statistical and probability algorithms, and make code to calculate these statistical values
-
-Stage 2: Study the best way to collect human clicking patterns and autoclicker patterns
-
-Stage 3: Make the code to detect autoclickers
-
 # Amount of click data necessary to detect autoclickers
 
 > In the case of click recorders, you can't detect them by checking if the data is too random or too consistent like in traditional checks, you need to find repeated clicking patterns. If for example, the user recorded 1k clicks, it will take the anticheat 1k stored clicks for that player in order to see that the recorded clicks are being repeated again.
