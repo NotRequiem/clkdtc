@@ -47,9 +47,12 @@ Spikes: Large changes between consecutive mouse click intervals.
 
 Covariance between intervals and statistics: Measure of the relationship between mouse click intervals and other statistical properties.
 
-Recurrence Rate, Determinism, Laminarity: Recurrence Quantification Analysis (RQA) measures calculated from recurrence plots derived from mouse click intervals. **This might be changed by Wavelet Analysis or nonlinear measures such as Lyapunov exponent in the future, i have to test.**
+**To test:** Wavelet Analysis and nonlinear measures such as Lyapunov exponent
 
 # Useless statistics to get in Autoclicker detection
+## RQA (RR, LAM AND DET)
+This was highly tested to detect if the recurrencePlot and its math formulas to calculate each variable are accurate enough to detect repeated patterns in clicking data (note that these values range from 0 to 1). CRP proved to be better at capturing both regularity and randomness in the click patterns.
+
 ## Rényi entropy or Tsallis entropy
 You should use Shannon entropy, as it measures the average amount of information produced by a random variable in a straightforward way. In the context of click intervals, it **directly** quantifies the uncertainty associated with the distribution of intervals, this algorithm is therefore easier to implement and faster to run.
 
@@ -70,16 +73,16 @@ When analyzing click intervals, you can think of them as a time series signal wh
 
 You can decompose this signal into its constituent frequencies. The FFT algorithm reveals the relative strength or power of different frequencies within the signal. For example, if an autoclicker operates at a specific frequency or rhythm, such as clicking every 100 milliseconds, you might observe a prominent peak in the frequency spectrum around the corresponding frequency. 
 
-This is useless because it's esentially the same as calculating spikes for a specified average of clicks within a specific standard desviation. The only 'advantage' it could have is allowing you to identify not only spikes but also dominant rhythmic patterns across a range of frequencies (clicking intervals), which we already do with RQA analysis.
+This is useless because it's esentially the same as calculating spikes for a specified average of clicks within a specific standard desviation. The only 'advantage' it could have is allowing you to identify not only spikes but also dominant rhythmic patterns across a range of frequencies (clicking intervals), which we already do with CRP analysis.
 
 ## Coefficient of Quartile Variation and Percentiles
 CQV is the ratio of the interquartile range to the median, providing a measure of relative variability based on quartiles. Since we're already calculating outliers with kurtosis analysis, which renders calculating a IQR useless due to 25-75% limitations, this formula is also useless.
 
 ## Cumulative Distribution Function
-CDF can be useful if an autoclicker programatically falls to certain ranges after a specific time below certain thresholds, since it is basically based on plotting the cumulative probability distribution of mouse click intervals. However, most math formulas in autoclickers don't take into account any condition to fall between specific randomization distribution ranges after a specific amount of time or clicks per seconds (let's say that the autoclicker might fall consistently under 11-12 cps after clicking 20cps during 30s to simulate exhaustment), and anyways the RQA analysis would reveal the usage of this pattern if its done over and over.
+CDF can be useful if an autoclicker programatically falls to certain ranges after a specific time below certain thresholds, since it is basically based on plotting the cumulative probability distribution of mouse click intervals. However, most math formulas in autoclickers don't take into account any condition to fall between specific randomization distribution ranges after a specific amount of time or clicks per seconds (let's say that the autoclicker might fall consistently under 11-12 cps after clicking 20cps during 30s to simulate exhaustment), and anyways the CRP analysis would reveal the usage of this pattern if its done over and over.
 
 ## Any algorithm based on Time Serial Analysis
-Techniques such as moving averages, exponential smoothing, or Fourier analysis to understand temporal patterns in mouse click intervals are already checked with RQA analysis.
+Techniques such as moving averages, exponential smoothing, or Fourier analysis to understand temporal patterns in mouse click intervals are already checked with CRP analysis.
 
 ## Delta, ranges, modes, maximums and minimums intervals
 Most people can click over a very short range (example 11-13 cps) always or with a very large range (5-11cps), or they can click 1cps and then 20cps for fun, this renders any of these kind of statistical values useless.
