@@ -23,16 +23,27 @@ To know why I used them and how they work/how they are calculated, read the code
 
 Brief explanation of every statistic:
 Mean Interval: Average time between consecutive mouse clicks.
+
 Standard Deviation: Measure of the dispersion or spread of the mouse click intervals.
+
 Variance: Measure of how much the mouse click intervals vary from the mean.
+
 Skewness: Measure of asymmetry in the distribution of mouse click intervals.
+
 Kurtosis: Measure of the "tailedness" of the distribution of mouse click intervals.
+
 Average Clicks per Second: Inverse of the mean interval, indicating how many clicks occur in one second on average.
+
 Serial Correlation: Measure of the correlation between successive mouse click intervals.
+
 Entropy: Measure of the randomness or unpredictability of the mouse click interval distribution.
+
 Outliers: Mouse click intervals that are more than 2 standard deviations away from the mean.
+
 Spikes: Large changes between consecutive mouse click intervals.
+
 Covariance between intervals and statistics: Measure of the relationship between mouse click intervals and other statistical properties.
+
 Recurrence Rate, Determinism, Laminarity: Recurrence Quantification Analysis (RQA) measures calculated from recurrence plots derived from mouse click intervals. **This might be changed by Wavelet Analysis or nonlinear measures such as Lyapunov exponent in the future, i have to test.**
 
 # Useless statistics to get in Autoclicker detection
