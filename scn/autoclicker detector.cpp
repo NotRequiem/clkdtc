@@ -9,12 +9,18 @@
 #include <cstdio>
 #include <cstdlib>
 #include <unordered_map>
+#include <thread>
+#include <iomanip>
+#include <mutex>
+#include <condition_variable>
 
 HHOOK hMouseHook;
 int monitorClicks = 0;
 int clickCount = 0;
 WPARAM monitorButton;
 std::vector<double> clickTimestamps;
+std::mutex dataMutex;
+std::condition_variable cv;
 
 void init() {
     int buttonChoice;
@@ -51,12 +57,14 @@ void init() {
 static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         if (wParam == monitorButton) {
+            std::lock_guard<std::mutex> lock(dataMutex);
             clickCount++;
             auto now = std::chrono::high_resolution_clock::now();
             auto duration = now.time_since_epoch();
             double timestamp = std::chrono::duration_cast<std::chrono::duration<double>>(duration).count();
             clickTimestamps.push_back(timestamp);
             std::cout << "Mouse event detected. Click count: " << clickCount << "\n";
+            cv.notify_all();
 
             if (clickCount >= monitorClicks) {
                 UnhookWindowsHookEx(hMouseHook);
@@ -240,6 +248,8 @@ double calculateEntropy(const std::vector<double>& data) {
     return entropy;
 }
 
+#ifdef _DEBUG
+
 // Calculate the cross recurrence plot (CRP)
 /*
  the CRP is represented as a matrix of 0s and 1s. 
@@ -261,30 +271,82 @@ std::vector<std::vector<int>> calculateCRP(const std::vector<double>& data, doub
 
     return crp;
 }
+#endif
 
 // After getting a lot of statistical values for LEGIT data only, we can use the Gaussian distribution
 // This would compare our human click behavior with actual clicking behavior
 
-void process_click_data() {
-    // This is done because we can't calculate an average of the data with only 1 sample.
-    // Even if its a number like 2 or 3, we won't be able to calculate the kurtosis, skewness and covariance of the whole click data
-    // for precision in the calculations, using at least 30-50 click intervals is recommended due to the Central Limit Theorem
-    // althought to detect autoclickers we will use more
-    if (clickTimestamps.size() < 2) {
-        std::cout << "Not enough data to calculate statistics.\n";
-        return;
+void calculateAndLogStatistics() {
+    std::vector<double> intervals;
+    while (true) {
+        std::unique_lock<std::mutex> lock(dataMutex);
+        cv.wait(lock, [] { return clickTimestamps.size() % 50 == 0 || clickCount >= monitorClicks; });
+
+        intervals.clear();
+        for (size_t i = 1; i < clickTimestamps.size(); ++i) {
+            intervals.push_back(clickTimestamps[i] - clickTimestamps[i - 1]);
+        }
+
+        double meanInterval = calculateMean(intervals);
+        double stdDev = calculateStandardDeviation(intervals, meanInterval);
+        double variance = calculateVariance(intervals, meanInterval);
+        double skewness = calculateSkewness(intervals, meanInterval, stdDev);
+        double kurtosis = calculateKurtosis(intervals, meanInterval, stdDev);
+        double avgClicksPerSec = 1.0 / meanInterval;
+        double serialCorrelation = calculateSerialCorrelation(intervals);
+        double entropy = calculateEntropy(intervals);
+
+#ifdef _DEBUG
+        std::vector<std::vector<int>> crp = calculateCRP(intervals, stdDev);
+
+        // Output the CRP matrix
+        std::cout << "Cross Recurrence Plot (CRP):\n";
+        for (const auto& row : crp) {
+            for (int val : row) {
+                std::cout << val << " ";
+            }
+            std::cout << std::endl;
+        }
+#endif
+
+// The maximum number of decimal places you can print with precise pointer precision (assuming the default precision of double type in C++) is typically around 15 to 17 decimal places.
+
+        std::cout << "Average statistics of the whole click data:" << std::endl;
+        std::cout << std::setprecision(15);
+
+        std::cout <<    "Mean Interval: " << meanInterval << " seconds\n";
+        std::cout <<    "Standard Deviation: " << stdDev << "\n";
+        std::cout <<    "Variance: " << variance << "\n";
+        std::cout <<    "Skewness: " << skewness << "\n";
+        std::cout <<    "Kurtosis: " << kurtosis << "\n";
+        std::cout <<    "Average Clicks per Second: " << avgClicksPerSec << "\n";
+        std::cout <<    "Serial Correlation: " << serialCorrelation << "\n";
+        std::cout <<    "Entropy: " << entropy << "\n";       
+
+        if (clickCount >= monitorClicks) break;
     }
+}
+
+void detectPatterns() {
+    struct IntervalStats {
+        double meanInterval;
+        double stdDev;
+        double variance;
+        double skewness;
+        double kurtosis;
+        double avgClicksPerSec;
+        double serialCorrelation;
+        double entropy;
+    };
+
+    std::vector<IntervalStats> allStats;
+    std::unordered_map<std::string, std::vector<IntervalStats>> patternStats;
+    std::unordered_map<std::string, int> patternCounts;
 
     std::vector<double> intervals;
     for (size_t i = 1; i < clickTimestamps.size(); ++i) {
         intervals.push_back(clickTimestamps[i] - clickTimestamps[i - 1]);
     }
-
-    std::cout << "Click timestamps:\n";
-    for (double timestamp : clickTimestamps) {
-        std::cout << timestamp << " ";
-    }
-    std::cout << "\n";
 
     double meanInterval = calculateMean(intervals);
     double stdDev = calculateStandardDeviation(intervals, meanInterval);
@@ -295,48 +357,58 @@ void process_click_data() {
     double serialCorrelation = calculateSerialCorrelation(intervals);
     double entropy = calculateEntropy(intervals);
 
-    // The maximum number of decimal places you can print with precise pointer precision (assuming the default precision of double type in C++) is typically around 15 to 17 decimal places.
-    std::cout << std::setprecision(15);
+    IntervalStats currentStats = { meanInterval, stdDev, variance, skewness, kurtosis, avgClicksPerSec, serialCorrelation, entropy };
+    allStats.push_back(currentStats);
 
-    std::cout << "Mean Interval: " << meanInterval << " seconds\n";
-    std::cout << "Standard Deviation: " << stdDev << "\n";
-    std::cout << "Variance: " << variance << "\n";
-    std::cout << "Skewness: " << skewness << "\n";
-    std::cout << "Kurtosis: " << kurtosis << "\n";
-    std::cout << "Average Clicks per Second: " << avgClicksPerSec << "\n";
-    std::cout << "Serial Correlation: " << serialCorrelation << "\n";
-    std::cout << "Entropy: " << entropy << "\n";
+    std::vector<double> stats = { meanInterval, stdDev, variance, skewness, kurtosis, avgClicksPerSec, serialCorrelation, entropy };
 
-    detectSpikesAndOutliers(intervals, meanInterval, stdDev);
-
-    // Calculate covariance between intervals and statistics
-    // This is because we're interested in understanding the relationship between intervals and the overall statistical properties of the data
-    std::vector<double> stats = { meanInterval, stdDev, skewness, kurtosis, avgClicksPerSec };
-    double meanStats = calculateMean(stats);
-
-    std::vector<double> deviations;
-    for (double interval : intervals) {
-        deviations.push_back(interval - meanInterval);
-    }
-
-    double covariance = calculateCovariance(deviations, stats, 0.0, meanStats);
-    std::cout << "Covariance between intervals and statistics: " << covariance << "\n";
-
-    std::vector<std::vector<int>> crp = calculateCRP(intervals, stdDev);
-
-    // Output the CRP matrix
-    std::cout << "Cross Recurrence Plot (CRP):\n";
-    for (const auto& row : crp) {
-        for (int val : row) {
-            std::cout << val << " ";
+    for (size_t i = 0; i < stats.size() - 1; ++i) {
+        for (size_t j = i + 1; j < stats.size(); ++j) {
+            if (std::abs(stats[i] - stats[j]) < 2) {
+                std::string patternKey = std::to_string(i) + "_" + std::to_string(j);
+                patternStats[patternKey].push_back(currentStats);
+                patternCounts[patternKey]++;
+                if (patternCounts[patternKey] >= 3) {
+                    std::cout << "Autoclicker detected due to pattern in intervals " << i << " and " << j << "!\n";
+                    std::cout << "Stats for intervals where pattern was detected:\n";
+                    for (const auto& stats : patternStats[patternKey]) {
+                        std::cout << "Mean Interval: " << stats.meanInterval << "\n";
+                        std::cout << "Standard Deviation: " << stats.stdDev << "\n";
+                        std::cout << "Variance: " << stats.variance << "\n";
+                        std::cout << "Skewness: " << stats.skewness << "\n";
+                        std::cout << "Kurtosis: " << stats.kurtosis << "\n";
+                        std::cout << "Average Clicks per Second: " << stats.avgClicksPerSec << "\n";
+                        std::cout << "Serial Correlation: " << stats.serialCorrelation << "\n";
+                        std::cout << "Entropy: " << stats.entropy << "\n";
+                        std::cout << "---------------------\n";
+                    }
+                    return;
+                }
+            }
         }
-        std::cout << std::endl;
     }
+}
+
+void process_click_data() {
+    // This is done because obviously we can't calculate an average of the data with only 1 sample.
+    // Even if its a number like 2 or 3, we won't be able to calculate the kurtosis, skewness and covariance of the whole click data
+    // for precision in the calculations, using at least 30-50 click intervals is recommended due to the Central Limit Theorem
+    // althought to detect autoclickers we will use a lot more
+    if (clickTimestamps.size() < 2) {
+        std::cout << "Not enough data to calculate statistics.\n";
+        return;
+    }
+
+    std::thread statsThread(calculateAndLogStatistics);
+    statsThread.join();
+
+    detectPatterns();
 }
 
 int main() {
     init();
-    install_hook();
+    std::thread hookThread(install_hook);
+    hookThread.join();
     process_click_data();
     return 0;
 }
