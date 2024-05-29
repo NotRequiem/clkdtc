@@ -24,6 +24,7 @@ In conclusion, there's no specific amount of clicks. The more you can store and 
 To know why I used them and how they work/how they are calculated, read the code comments in the math folder
 
 Brief explanation of every statistic:
+
 Mean Interval: Average time between consecutive mouse clicks.
 
 Standard Deviation: Measure of the dispersion or spread of the mouse click intervals.
