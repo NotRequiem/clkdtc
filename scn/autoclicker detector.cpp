@@ -14,6 +14,17 @@
 #include <mutex>
 #include <condition_variable>
 
+struct IntervalStats {
+    double meanInterval;
+    double stdDev;
+    double variance;
+    double skewness;
+    double kurtosis;
+    double avgClicksPerSec;
+    double serialCorrelation;
+    double entropy;
+};
+
 HHOOK hMouseHook;
 int monitorClicks = 0;
 int clickCount = 0;
@@ -328,60 +339,85 @@ void calculateAndLogStatistics() {
 }
 
 void detectPatterns() {
-    struct IntervalStats {
-        double meanInterval;
-        double stdDev;
-        double variance;
-        double skewness;
-        double kurtosis;
-        double avgClicksPerSec;
-        double serialCorrelation;
-        double entropy;
-    };
-
     std::vector<IntervalStats> allStats;
-    std::unordered_map<std::string, std::vector<IntervalStats>> patternStats;
-    std::unordered_map<std::string, int> patternCounts;
+    const int monitorCount = 50;
+    const int threshold = 2;
+    const int repeatCount = 10;
 
     std::vector<double> intervals;
     for (size_t i = 1; i < clickTimestamps.size(); ++i) {
         intervals.push_back(clickTimestamps[i] - clickTimestamps[i - 1]);
     }
 
-    double meanInterval = calculateMean(intervals);
-    double stdDev = calculateStandardDeviation(intervals, meanInterval);
-    double variance = calculateVariance(intervals, meanInterval);
-    double skewness = calculateSkewness(intervals, meanInterval, stdDev);
-    double kurtosis = calculateKurtosis(intervals, meanInterval, stdDev);
-    double avgClicksPerSec = 1.0 / meanInterval;
-    double serialCorrelation = calculateSerialCorrelation(intervals);
-    double entropy = calculateEntropy(intervals);
+    for (size_t i = monitorCount; i < intervals.size(); ++i) {
+        std::vector<double> currentIntervals(intervals.begin(), intervals.begin() + i);
+        double meanInterval = calculateMean(currentIntervals);
+        double stdDev = calculateStandardDeviation(currentIntervals, meanInterval);
+        double variance = calculateVariance(currentIntervals, meanInterval);
+        double skewness = calculateSkewness(currentIntervals, meanInterval, stdDev);
+        double kurtosis = calculateKurtosis(currentIntervals, meanInterval, stdDev);
+        double avgClicksPerSec = 1.0 / meanInterval;
+        double serialCorrelation = calculateSerialCorrelation(currentIntervals);
+        double entropy = calculateEntropy(currentIntervals);
 
-    IntervalStats currentStats = { meanInterval, stdDev, variance, skewness, kurtosis, avgClicksPerSec, serialCorrelation, entropy };
-    allStats.push_back(currentStats);
+        IntervalStats currentStats = { meanInterval, stdDev, variance, skewness, kurtosis, avgClicksPerSec, serialCorrelation, entropy };
+        allStats.push_back(currentStats);
 
-    std::vector<double> stats = { meanInterval, stdDev, variance, skewness, kurtosis, avgClicksPerSec, serialCorrelation, entropy };
+        for (size_t j = 0; j < allStats.size() - 1; ++j) {
+            IntervalStats& prevStats = allStats[j];
+            if (std::abs(currentStats.meanInterval - prevStats.meanInterval) < threshold &&
+                std::abs(currentStats.stdDev - prevStats.stdDev) < threshold &&
+                std::abs(currentStats.variance - prevStats.variance) < threshold &&
+                std::abs(currentStats.skewness - prevStats.skewness) < threshold &&
+                std::abs(currentStats.kurtosis - prevStats.kurtosis) < threshold &&
+                std::abs(currentStats.avgClicksPerSec - prevStats.avgClicksPerSec) < threshold &&
+                std::abs(currentStats.serialCorrelation - prevStats.serialCorrelation) < threshold &&
+                std::abs(currentStats.entropy - prevStats.entropy) < threshold) {
 
-    for (size_t i = 0; i < stats.size() - 1; ++i) {
-        for (size_t j = i + 1; j < stats.size(); ++j) {
-            if (std::abs(stats[i] - stats[j]) < 2) {
-                std::string patternKey = std::to_string(i) + "_" + std::to_string(j);
-                patternStats[patternKey].push_back(currentStats);
-                patternCounts[patternKey]++;
-                if (patternCounts[patternKey] >= 3) {
-                    std::cout << "Autoclicker detected due to pattern in intervals " << i << " and " << j << "!\n";
-                    std::cout << "Stats for intervals where pattern was detected:\n";
-                    for (const auto& stats : patternStats[patternKey]) {
-                        std::cout << "Mean Interval: " << stats.meanInterval << "\n";
-                        std::cout << "Standard Deviation: " << stats.stdDev << "\n";
-                        std::cout << "Variance: " << stats.variance << "\n";
-                        std::cout << "Skewness: " << stats.skewness << "\n";
-                        std::cout << "Kurtosis: " << stats.kurtosis << "\n";
-                        std::cout << "Average Clicks per Second: " << stats.avgClicksPerSec << "\n";
-                        std::cout << "Serial Correlation: " << stats.serialCorrelation << "\n";
-                        std::cout << "Entropy: " << stats.entropy << "\n";
-                        std::cout << "---------------------\n";
+                std::cout << "Possible autoclicker pattern detected between clicks " << j + monitorCount << " and " << i + 1 << "!\n";
+                std::cout << "Stats for click " << j + monitorCount << ":\n";
+                std::cout << "Mean Interval: " << prevStats.meanInterval << "\n";
+                std::cout << "Standard Deviation: " << prevStats.stdDev << "\n";
+                std::cout << "Variance: " << prevStats.variance << "\n";
+                std::cout << "Skewness: " << prevStats.skewness << "\n";
+                std::cout << "Kurtosis: " << prevStats.kurtosis << "\n";
+                std::cout << "Average Clicks per Second: " << prevStats.avgClicksPerSec << "\n";
+                std::cout << "Serial Correlation: " << prevStats.serialCorrelation << "\n";
+                std::cout << "Entropy: " << prevStats.entropy << "\n";
+                std::cout << "---------------------\n";
+
+                std::cout << "Stats for click " << i + 1 << ":\n";
+                std::cout << "Mean Interval: " << currentStats.meanInterval << "\n";
+                std::cout << "Standard Deviation: " << currentStats.stdDev << "\n";
+                std::cout << "Variance: " << currentStats.variance << "\n";
+                std::cout << "Skewness: " << currentStats.skewness << "\n";
+                std::cout << "Kurtosis: " << currentStats.kurtosis << "\n";
+                std::cout << "Average Clicks per Second: " << currentStats.avgClicksPerSec << "\n";
+                std::cout << "Serial Correlation: " << currentStats.serialCorrelation << "\n";
+                std::cout << "Entropy: " << currentStats.entropy << "\n";
+                std::cout << "---------------------\n";
+
+                int patternInterval = (i + 1) - (j + monitorCount);
+                int matchCount = 1;
+                size_t nextCheck = i + 1 + patternInterval;
+
+                while (matchCount < repeatCount && nextCheck < allStats.size()) {
+                    IntervalStats& nextStats = allStats[nextCheck - monitorCount];
+                    if (std::abs(currentStats.meanInterval - nextStats.meanInterval) < threshold &&
+                        std::abs(currentStats.stdDev - nextStats.stdDev) < threshold &&
+                        std::abs(currentStats.variance - nextStats.variance) < threshold &&
+                        std::abs(currentStats.skewness - nextStats.skewness) < threshold &&
+                        std::abs(currentStats.kurtosis - nextStats.kurtosis) < threshold &&
+                        std::abs(currentStats.avgClicksPerSec - nextStats.avgClicksPerSec) < threshold &&
+                        std::abs(currentStats.serialCorrelation - nextStats.serialCorrelation) < threshold &&
+                        std::abs(currentStats.entropy - nextStats.entropy) < threshold) {
+                        matchCount++;
                     }
+                    nextCheck += patternInterval;
+                }
+
+                if (matchCount >= repeatCount) {
+                    std::cout << "Autoclicker detected!\n";
                     return;
                 }
             }
