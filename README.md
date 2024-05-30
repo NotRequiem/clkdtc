@@ -44,7 +44,7 @@ Example:
 
 This comparison entails scrutinizing whether all members of a statistics vector for a particular click closely resemble their corresponding members in other statistics vectors, meaning that, for instance, the standard deviation (stdDev) of the stats vector for click 60 is compared with the standard deviation of the stats vector for click 61, and so forth.
 
-A threshold of **2 standard deviations** is typically employed for this comparison, adhering to common statistical practices.
+A **threshold of 2** is typically employed for this comparison, adhering to common statistical practices.
 
 Should such similarity be detected across **all members** of a statistics vector in relation to another statistics vector, the function logs the occurrence and the corresponding click counts (rather than time, as users may cease clicking at any juncture). Subsequently, the stored statistics **MUST** be cleared to facilitate the detection of recurring patterns.
 
