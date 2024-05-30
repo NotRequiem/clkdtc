@@ -1,92 +1,53 @@
-Simple PoC to show what are the best ways to mathematically detect autoclicker randomization. Code not modularized because it's still in development
+Simple PoC to show how to detect any pattern in autoclicking
 
-# Amount of click data necessary to detect autoclickers
+# Autoclicker Randomization Detection Pattern
 
-> In the case of click recorders, you can't detect them by checking if the data is too random or too consistent like in traditional checks, you need to find repeated clicking patterns. If for example, the user recorded 1k clicks, it will take the anticheat 1k stored clicks for that player in order to see that the recorded clicks are being repeated again.
+The approach I advocate for detecting autoclickers centers on identifying patterns that occur with such frequency and precision that they are unlikely to be the result of human input. This method minimizes false positives while effectively pinpointing autoclickers, including those employing mathematical algorithms that generate repetitive actions over time. Additionally, it facilitates the detection of click recorders, which inevitably cycle through recorded clicks upon reaching the end of the recorded sequence. Introducing randomization into the process presents another avenue for detection, particularly if the randomization algorithm follows a discernible pattern rather than exhibiting true randomness.
 
-> In the case of autoclickers with or without randomization, you can detect them by seeing if the clicking behaviour is too random or too consistent. It's theorically possible to flag an autoclicker with 10 clicks, however, most clickers use a math formula to be in a consistent human average (not too random, not too consistent), leading again to having to detect if the player is repeating a click pattern over a certain time or he/she always clicks between a specific but quite short range for a long of time.
+The algorithm proposed for logically discerning patterns in click data operates as follows:
 
-In conclusion, there's no specific amount of clicks. The more you can store and analyze in an optimized way, the better.
+Initially, track the click that it's being used the most (the main click of the player, used to perform common actions) and calculate statistical metrics. These metrics include mean interval, standard deviation, variance, skewness, kurtosis, average clicks per second, serial correlation, and entropy.
 
-# Statistics that this code uses in Autoclicker detection
-To know why I used them and how they work/how they are calculated, read the code comments in the math folder
+Once more than **50 clicks** have been registered (a value hardcoded due to the Central Limit Theorem), begin generating vectors of statistics for each click. These vectors encompass the aforementioned statistical metrics and are structured as follows:
 
-Brief explanation of every statistic:
+`std::vector<double> stats={meanInterval,stdDev,variance,skewness,kurtosis,avgClicksPerSec,serialCorrelation,entropy}`
 
-Mean Interval: Average time between consecutive mouse clicks.
+For instance, the statistical metrics for click 51 and click 52 would be organized into respective vectors:
 
-Standard Deviation: Measure of the dispersion or spread of the mouse click intervals.
+```
+Stats at click 50: 
+Mean Interval: 0.143725244827598 seconds
+Standard Deviation: 0.0107426563383792
+Variance: 0.00011540466520452
+Skewness: 0.664087277829953
+Kurtosis: 4.00060216750929
+Average Clicks per Second: 6.95771992734835
+Serial Correlation: 0.0105528488257754
+Entropy: 4.85798099512757
 
-Variance: Measure of how much the mouse click intervals vary from the mean.
+Stats at click 51:
+Mean Interval: 0.728125244827598 seconds
+Standard Deviation: 0.8932426563383792
+Variance: 0.41311540466520452
+Skewness: 0.178987277829953
+Kurtosis: 5.91160216750929
+Average Clicks per Second: 8.18371992734835
+Serial Correlation: 4.1202552448247754
+Entropy: 6.85798099512757
+```
 
-Skewness: Measure of asymmetry in the distribution of mouse click intervals.
+Upon reaching a designated buffer size allocated for autoclicker pattern recognition (or, if performance permits, conducting real-time comparisons), a function (designated as 'detect_patterns in my PoC') must compare each member of the statistics vectors with their corresponding counterparts.
 
-Kurtosis: Measure of the "tailedness" of the distribution of mouse click intervals.
+Example:
 
-Average Clicks per Second: Inverse of the mean interval, indicating how many clicks occur in one second on average.
+> The function is tasked with systematically comparing the statistical metrics of consecutive click events. Initially, it compares the statistical metrics of click 50 with those of click 51, followed by click 52, click 53, and so forth, extending its comparison to all stored statistical vectors in memory. Once it exhausts the comparison for click 50, it proceeds to repeat the same process for other click events. For instance, upon completing the comparison for click 50, it embarks on comparing the statistical metrics of click 51 with those of click 50, click 52, click 53, click 54, and subsequent clicks.
 
-Serial Correlation: Measure of the correlation between successive mouse click intervals.
+This comparison entails scrutinizing whether all members of a statistics vector for a particular click closely resemble their corresponding members in other statistics vectors, meaning that, for instance, the standard deviation (stdDev) of the stats vector for click 60 is compared with the standard deviation of the stats vector for click 61, and so forth.
 
-Entropy: Measure of the randomness or unpredictability of the mouse click interval distribution.
+A threshold of **2 standard deviations** is typically employed for this comparison, adhering to common statistical practices.
 
-Outliers: Mouse click intervals that are more than 2 standard deviations away from the mean.
+Should such similarity be detected across **all members** of a statistics vector in relation to another statistics vector, the function logs the occurrence and the corresponding click counts (rather than time, as users may cease clicking at any juncture). Subsequently, the stored statistics **MUST** be cleared to facilitate the detection of recurring patterns.
 
-Spikes: Large changes between consecutive mouse click intervals.
+For example, if the statistics vector for click 108 closely resembles that of click 279, suggesting a potential autoclicker pattern, the function examines whether the statistics vector for click 279 + 171 (click 450) and those in its vicinity exhibit similar patterns. Should this recurrence persist over a threshold of **10 instances**, indicative of frequent intervals, the code flags the presence of an autoclicker.
 
-Covariance between intervals and statistics: Measure of the relationship between mouse click intervals and other statistical properties.
-
-**To test:** Wavelet Analysis and nonlinear measures such as Lyapunov exponent
-
-# Useless statistics to get in Autoclicker detection
-## RQA (RR, LAM AND DET)
-This was highly tested to detect if the recurrencePlot and its math formulas to calculate each variable are accurate enough to detect repeated patterns in clicking data (note that these values range from 0 to 1). CRP proved to be better at capturing both regularity and randomness in the click patterns.
-
-## Rényi entropy or Tsallis entropy
-You should use Shannon entropy, as it measures the average amount of information produced by a random variable in a straightforward way. In the context of click intervals, it **directly** quantifies the uncertainty associated with the distribution of intervals, this algorithm is therefore easier to implement and faster to run.
-
-## Outliers
-It is not useless, but some anticheat developers use outliers and kurtosis at the same time from external math libraries which doesn't make sense.
-
-You can indirectly calculate outliers with kurtosis. High kurtosis indicates more outliers (heavy tails), while low kurtosis indicates fewer outliers (light tails), like it's being done in the code
-
-You can also identify them with Interquartile Range (IQR), the range between the first quartile (25th percentile) and the third quartile (75th percentile) of the mouse click intervals.
-
-## Benford's Law
-Benford's Law states that in many naturally occurring datasets, the leading digits are not uniformly distributed. This is not true at all in many scenarios, where the leading interval frequencies of clicks can be consistent.
-
-## Fast Fourier Transform (Frequency Domain Analysis)
-FFT analysis on the click intervals can be used to identify dominant frequencies. Sudden changes or spikes in dominant frequencies may indicate artificial manipulation:
-
-When analyzing click intervals, you can think of them as a time series signal where clicks represent events occurring over time. In the case of autoclicker detection, dominant frequencies might indicate patterns or regularities in clicking behavior. 
-
-You can decompose this signal into its constituent frequencies. The FFT algorithm reveals the relative strength or power of different frequencies within the signal. For example, if an autoclicker operates at a specific frequency or rhythm, such as clicking every 100 milliseconds, you might observe a prominent peak in the frequency spectrum around the corresponding frequency. 
-
-This is useless because it's esentially the same as calculating spikes for a specified average of clicks within a specific standard desviation. The only 'advantage' it could have is allowing you to identify not only spikes but also dominant rhythmic patterns across a range of frequencies (clicking intervals), which we already do with CRP analysis.
-
-## Coefficient of Quartile Variation and Percentiles
-CQV is the ratio of the interquartile range to the median, providing a measure of relative variability based on quartiles. Since we're already calculating outliers with kurtosis analysis, which renders calculating a IQR useless due to 25-75% limitations, this formula is also useless.
-
-## Cumulative Distribution Function
-CDF can be useful if an autoclicker programatically falls to certain ranges after a specific time below certain thresholds, since it is basically based on plotting the cumulative probability distribution of mouse click intervals. However, most math formulas in autoclickers don't take into account any condition to fall between specific randomization distribution ranges after a specific amount of time or clicks per seconds (let's say that the autoclicker might fall consistently under 11-12 cps after clicking 20cps during 30s to simulate exhaustment), and anyways the CRP analysis would reveal the usage of this pattern if its done over and over.
-
-## Any algorithm based on Time Serial Analysis
-Techniques such as moving averages, exponential smoothing, or Fourier analysis to understand temporal patterns in mouse click intervals are already checked with CRP analysis.
-
-## Delta, ranges, modes, maximums and minimums intervals
-Most people can click over a very short range (example 11-13 cps) always or with a very large range (5-11cps), or they can click 1cps and then 20cps for fun, this renders any of these kind of statistical values useless.
-
-## Autocorrelation and Detrended Fluctuation Analysis
-This is the correlation of the mouse click interval series with itself at different lag values, revealing patterns of correlation at different time delays, which we don't need since it's essentially the same as calculating the covariance between click intervals and click statistics (desviation, entropy, etc).
-
-## Median Interval
-This basically is wrongly used by anticheat developers to detect sudden spikes or shifts in the distribution, especially if accompanied by deviations from the median interval, which is the middle value of the sorted list of mouse click intervals. This is done by a lot of legit players naturally as they spike or shift from x mean ranges because a lot of reasons, such as exhaustion or just because they want to. 
-
-## Coefficient of Variation
-We just don't need to express the standard deviation as a percentage, it's better to use decimal values
-
-## Fractal Dimensions
-This is a bad technique because it detects if the stats of a player are too complex over a lot of time by basically counting the violations of high complexity. It calculates the fractal dimension of the mouse click interval time series using methods like box-counting or correlation dimension, providing insights into the complexity and self-similarity of the data. 
-
-Example: They click with too randomly, with very low cps and very low spikes, then suddenly click consistently, at high cps and without any spike, then they start having a lot of outliers when before they were not... 
-
-A player might do this because simply being exhaust or requiring to click in a different way to do something, or **even** having different states of moods, such as calm, then nervous, etc.
+This methodology offers a high degree of resilience against false positives. The requirement for two similar vectors across eight distinct statistical measures, occurring at frequent intervals and persisting over a significant number of instances, makes false positives exceedingly rare. Nonetheless, autoclickers operating on hardcoded patterns or formulae, or employing inadequate randomization in the case of click recorders, are prone to detection through this method.
