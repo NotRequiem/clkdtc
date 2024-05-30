@@ -1,4 +1,4 @@
-#include "desviation.hpp"
+#include "deviation.hpp"
 
 void detectSpikesAndOutliers(const std::vector<double>& data, double mean, double stdDev) {
     std::cout << "Outliers (more than 4 STD from mean):\n";
