@@ -188,7 +188,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="math\correlation.cpp" />
     <ClCompile Include="math\covariance.cpp" />
-    <ClCompile Include="math\desviation.cpp" />
+    <ClCompile Include="math\deviation.cpp" />
     <ClCompile Include="math\entropy.cpp" />
     <ClCompile Include="math\kurtosis.cpp" />
     <ClCompile Include="math\mean.cpp" />
@@ -203,7 +203,7 @@
     <ClInclude Include="main.hpp" />
     <ClInclude Include="math\correlation.hpp" />
     <ClInclude Include="math\covariance.hpp" />
-    <ClInclude Include="math\desviation.hpp" />
+    <ClInclude Include="math\deviation.hpp" />
     <ClInclude Include="math\entropy.hpp" />
     <ClInclude Include="math\kurtosis.hpp" />
     <ClInclude Include="math\math.h" />
