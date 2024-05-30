@@ -2,7 +2,7 @@
 
 #include "correlation.hpp"
 #include "covariance.hpp"
-#include "desviation.hpp"
+#include "deviation.hpp"
 #include "entropy.hpp"
 #include "kurtosis.hpp"
 #include "mean.hpp"
